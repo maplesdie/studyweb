@@ -4,24 +4,24 @@
 function Test-CommandSuccess {
     param([int]$ExitCode, [string]$ErrorMessage)
     if ($ExitCode -ne 0) {
-        Write-Host "❌ $ErrorMessage" -ForegroundColor Red
+        Write-Host "[ERROR] $ErrorMessage" -ForegroundColor Red
         exit 1
     }
 }
 
 function Write-Step {
     param([string]$Message)
-    Write-Host "🔄 $Message" -ForegroundColor Cyan
+    Write-Host "[INFO] $Message" -ForegroundColor Cyan
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "✅ $Message" -ForegroundColor Green
+    Write-Host "[SUCCESS] $Message" -ForegroundColor Green
 }
 
 function Write-Warning {
     param([string]$Message)
-    Write-Host "⚠️ $Message" -ForegroundColor Yellow
+    Write-Host "[WARNING] $Message" -ForegroundColor Yellow
 }
 
 try {
@@ -83,7 +83,7 @@ try {
     try {
         $response = Invoke-RestMethod -Uri 'https://study-api.maples-die.workers.dev/api/articles' -Method GET -TimeoutSec 10
         Write-Success "API is responding correctly"
-        Write-Host "📊 Articles count: $($response.articles.Count)" -ForegroundColor Green
+        Write-Host "[DATA] Articles count: $($response.articles.Count)" -ForegroundColor Green
     }
     catch {
         Write-Warning "API test failed, but deployment may be successful"
@@ -93,21 +93,21 @@ try {
     
     # Step 6: Wait for Pages deployment
     Write-Step "Waiting for Cloudflare Pages auto-deployment..."
-    Write-Host "⏳ GitHub push should trigger automatic build on Cloudflare Pages" -ForegroundColor Yellow
-    Write-Host "⏳ This usually takes 1-3 minutes" -ForegroundColor Yellow
+    Write-Host "[INFO] GitHub push should trigger automatic build on Cloudflare Pages" -ForegroundColor Yellow
+    Write-Host "[INFO] This usually takes 1-3 minutes" -ForegroundColor Yellow
     Write-Host ""
     
     # Final status
-    Write-Host "==========================================" -ForegroundColor Green
+    Write-Host "=========================================" -ForegroundColor Green
     Write-Success "Deployment completed!"
-    Write-Host "📱 Frontend: Building on Cloudflare Pages" -ForegroundColor Green
-    Write-Host "☁️ API: https://study-api.maples-die.workers.dev" -ForegroundColor Green
-    Write-Host "🌐 Website: https://love.xiugou.top" -ForegroundColor Green
-    Write-Host "📊 Check Cloudflare Pages dashboard for build status" -ForegroundColor Green
-    Write-Host "==========================================" -ForegroundColor Green
+    Write-Host "[FRONTEND] Building on Cloudflare Pages" -ForegroundColor Green
+    Write-Host "[API] https://study-api.maples-die.workers.dev" -ForegroundColor Green
+    Write-Host "[WEBSITE] https://love.xiugou.top" -ForegroundColor Green
+    Write-Host "[STATUS] Check Cloudflare Pages dashboard for build status" -ForegroundColor Green
+    Write-Host "=========================================" -ForegroundColor Green
 }
 catch {
-    Write-Host "❌ Script execution failed:" -ForegroundColor Red
+    Write-Host "[ERROR] Script execution failed:" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
 }

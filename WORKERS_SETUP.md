@@ -118,41 +118,17 @@ const res = await fetch("https://study-api.your-subdomain.workers.dev/api/post",
 
 **注意**: 将 `your-subdomain` 替换为您实际的 Workers 域名。
 
-## 快捷同步方法 🚀
+## 快捷部署方法 🚀
 
-为了方便您快速同步代码到 GitHub 和 Cloudflare，我们提供了多种部署脚本：
+为了方便您快速部署项目，我们提供了一个完整的部署脚本：
 
-### 方法 1: 完整部署脚本（推荐）⭐
+### 一键完整部署（推荐）⭐
 ```bash
-# Windows 批处理版本
-.\full-deploy.bat
-
-# PowerShell 版本（更好的错误处理）
 .\full-deploy.ps1
 ```
 **功能**: 前端构建 + Git 同步 + Workers 部署 + Pages 部署
 
-### 方法 2: 仅 API 同步脚本
-```bash
-# Windows 批处理版本
-.\sync.bat
-
-# PowerShell 版本（更好的错误处理）
-.\sync.ps1
-```
-**功能**: Git 同步 + Workers 部署（不包含前端构建）
-
-### 方法 3: 一键快速同步
-```bash
-# 英文版本（避免乱码）
-.\quick-sync.bat
-
-# 中文版本（如果需要中文显示）
-.\quick-sync-cn.bat
-```
-**功能**: 快速 Git 同步 + Workers 部署
-
-### 方法 3: 手动命令
+### 手动部署命令
 ```bash
 # Git 同步
 git add .
@@ -165,10 +141,7 @@ wrangler deploy
 
 ### 脚本功能说明
 
-- **full-deploy.bat / full-deploy.ps1**: 🌟 完整部署流程，包含前端构建、Git 同步、Workers 部署和 Pages 部署
-- **sync.bat / sync.ps1**: 仅 API 同步流程，包含状态检查、错误处理和 API 测试
-- **quick-sync.bat**: 一键快速 API 同步（英文界面，避免乱码）
-- **quick-sync-cn.bat**: 一键快速 API 同步（中文界面）
+- **full-deploy.ps1**: 🌟 完整部署流程，包含前端构建、Git 同步、Workers 部署和 Pages 部署
 
 ### ⚠️ 重要说明：前端和后端分离部署
 
@@ -176,25 +149,18 @@ wrangler deploy
 1. **后端 API** (Cloudflare Workers) - 处理学习记录数据
 2. **前端网站** (Cloudflare Pages) - 显示网页界面
 
-**如果网页内容没有更新，原因是**：
-- `quick-sync.bat` 等脚本只部署了 **后端 API**
-- **前端网站** 需要先构建 (`npm run build`) 然后部署到 Cloudflare Pages
-- 使用 `full-deploy.bat` 或 `full-deploy.ps1` 可以同时部署前端和后端
-
-### 乱码问题解决方案
-
-如果运行脚本时出现乱码，请尝试以下解决方案：
-
-1. **使用英文版本**: 运行 `quick-sync.bat`（英文界面）
-2. **使用 PowerShell**: 运行 `sync.ps1`（更好的编码支持）
-3. **设置终端编码**: 在命令行中先运行 `chcp 65001`
-4. **使用 Windows Terminal**: 推荐使用 Windows Terminal 而不是传统的 cmd
+**使用 `full-deploy.ps1` 的优势**：
+- 自动构建前端 (`npm run build`)
+- 同步代码到 GitHub
+- 部署后端 API 到 Cloudflare Workers
+- 触发 Cloudflare Pages 自动部署前端
+- 一键完成所有部署步骤
 
 ### 使用建议
 
-1. **首次使用**: 建议使用 `sync.ps1`，可以看到详细的执行过程
-2. **日常更新**: 使用 `quick-sync.bat` 快速同步
-3. **出现问题**: 使用手动命令逐步排查
+1. **日常更新**: 直接运行 `full-deploy.ps1` 完成所有部署
+2. **首次使用**: 确保已安装 Node.js 和 Wrangler CLI
+3. **出现问题**: 查看脚本输出信息或使用手动命令逐步排查
 
 ## 步骤 9: 自定义域名（可选）
 

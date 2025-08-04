@@ -171,6 +171,124 @@ async function getArticle(articleId, env) {
   }
 }
 
+// 更新文章
+async function updateArticle(articleId, request, env) {
+  try {
+    // 验证授权
+    if (!validateAuth(request, env)) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 确保表存在
+    await createTableIfNotExists(env);
+
+    // 解析请求体
+    const { title, content } = await request.json();
+    
+    if (!title || !content) {
+      return new Response(JSON.stringify({ error: 'Title and content are required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 检查文章是否存在
+    const checkSQL = `SELECT id FROM articles WHERE id = ?`;
+    const existingArticle = await env.DB.prepare(checkSQL).bind(articleId).first();
+    
+    if (!existingArticle) {
+      return new Response(JSON.stringify({ error: 'Article not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 更新文章
+    const updateSQL = `
+      UPDATE articles 
+      SET title = ?, content = ?, updated_at = datetime('now') 
+      WHERE id = ?
+    `;
+    
+    const result = await env.DB.prepare(updateSQL)
+      .bind(title, content, articleId)
+      .run();
+
+    if (result.success) {
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Article updated successfully' 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } else {
+      throw new Error('Failed to update article');
+    }
+  } catch (error) {
+    console.error('Error updating article:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// 删除文章
+async function deleteArticle(articleId, request, env) {
+  try {
+    // 验证授权
+    if (!validateAuth(request, env)) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 确保表存在
+    await createTableIfNotExists(env);
+
+    // 检查文章是否存在
+    const checkSQL = `SELECT id FROM articles WHERE id = ?`;
+    const existingArticle = await env.DB.prepare(checkSQL).bind(articleId).first();
+    
+    if (!existingArticle) {
+      return new Response(JSON.stringify({ error: 'Article not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 删除文章
+    const deleteSQL = `DELETE FROM articles WHERE id = ?`;
+    
+    const result = await env.DB.prepare(deleteSQL)
+      .bind(articleId)
+      .run();
+
+    if (result.success) {
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Article deleted successfully' 
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } else {
+      throw new Error('Failed to delete article');
+    }
+  } catch (error) {
+    console.error('Error deleting article:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 // 主要的请求处理函数
 export default {
   async fetch(request, env, ctx) {
@@ -193,6 +311,12 @@ export default {
       } else if (path.startsWith('/api/articles/') && method === 'GET') {
         const articleId = path.split('/').pop();
         return await getArticle(articleId, env);
+      } else if (path.startsWith('/api/articles/') && method === 'PUT') {
+        const articleId = path.split('/').pop();
+        return await updateArticle(articleId, request, env);
+      } else if (path.startsWith('/api/articles/') && method === 'DELETE') {
+        const articleId = path.split('/').pop();
+        return await deleteArticle(articleId, request, env);
       } else {
         return new Response(JSON.stringify({ error: 'Not found' }), {
           status: 404,
