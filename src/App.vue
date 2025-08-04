@@ -6,7 +6,12 @@
   <!-- 主界面 -->
   <Transition name="fade" mode="out-in">
     <main id="main" v-if="store.imgLoadStatus">
-      <div class="container" v-show="!store.backgroundShow">
+      <!-- 学习记录页面 -->
+      <div v-if="store.studyOpenState" class="study-page">
+        <Study />
+      </div>
+      <!-- 主界面内容 -->
+      <div v-else class="container" v-show="!store.backgroundShow">
         <section class="all" v-show="!store.setOpenState">
           <MainLeft />
           <MainRight v-show="!store.boxOpenState" />
@@ -20,14 +25,14 @@
       <Icon
         class="menu"
         size="24"
-        v-show="!store.backgroundShow"
+        v-show="!store.backgroundShow && !store.studyOpenState"
         @click="store.mobileOpenState = !store.mobileOpenState"
       >
         <component :is="store.mobileOpenState ? CloseSmall : HamburgerButton" />
       </Icon>
       <!-- 页脚 -->
       <Transition name="fade" mode="out-in">
-        <Footer v-show="!store.backgroundShow && !store.setOpenState" />
+        <Footer v-show="!store.backgroundShow && !store.setOpenState && !store.studyOpenState" />
       </Transition>
     </main>
   </Transition>
@@ -44,6 +49,7 @@ import Background from "@/components/Background.vue";
 import Footer from "@/components/Footer.vue";
 import Box from "@/views/Box/index.vue";
 import MoreSet from "@/views/MoreSet/index.vue";
+import Study from "@/views/Study/index.vue";
 import cursorInit from "@/utils/cursor.js";
 import config from "@/../package.json";
 
@@ -187,5 +193,10 @@ onBeforeUnmount(() => {
       display: none;
     }
   }
+}
+
+.study-page {
+  width: 100%;
+  height: 100%;
 }
 </style>

@@ -76,6 +76,8 @@ const siteIcon = {
 const jumpLink = (data) => {
   if (data.name === "音乐" && store.musicClick) {
     if (typeof $openList === "function") $openList();
+  } else if (data.name === "学习记录") {
+    store.studyOpenState = true;
   } else {
     window.open(data.link, "_blank");
   }
