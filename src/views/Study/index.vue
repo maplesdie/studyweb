@@ -8,26 +8,50 @@
       </button>
       <h1>学习记录</h1>
       <button class="new-post-btn" @click="showPublishForm">
+        <plus theme="outline" size="16" />
         新建发布
       </button>
     </div>
     
-    <!-- 主要内容区域 -->
-    <div class="content">
-      <!-- 文章列表 -->
-      <div class="articles-list">
-        <div v-if="loading" class="loading">加载中...</div>
-        <div v-else-if="articles.length === 0" class="no-articles">暂无文章</div>
-        <div v-else class="articles">
-          <div v-for="article in articles" :key="article.id" class="article-item">
-            <h3>{{ article.title }}</h3>
-            <p class="article-content">{{ truncateContent(article.content) }}</p>
-            <div class="article-meta">
-              <span class="date">{{ formatDate(article.created_at) }}</span>
-              <div class="article-actions">
-                <button @click="viewFullArticle(article)" class="view-btn">查看全文</button>
-                <button @click="editArticle(article)" class="edit-btn">编辑</button>
-                <button @click="deleteArticle(article.id)" class="delete-btn">删除</button>
+    <!-- 时间轴主要内容区域 -->
+    <div class="timeline-container" ref="timelineContainer">
+      <div v-if="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <span>加载中...</span>
+      </div>
+      <div v-else-if="groupedArticles.length === 0" class="no-articles">
+        <div class="empty-icon">📚</div>
+        <p>暂无学习记录</p>
+        <span>开始记录你的学习之旅吧！</span>
+      </div>
+      <div v-else class="timeline-wrapper">
+        <!-- 时间轴线 -->
+        <div class="timeline-line"></div>
+        
+        <!-- 时间轴节点 -->
+        <div 
+          v-for="(dayGroup, index) in groupedArticles" 
+          :key="dayGroup.date"
+          :class="['timeline-item', index % 2 === 0 ? 'timeline-item-top' : 'timeline-item-bottom']"
+          :style="{ left: `${index * 200 + 100}px` }"
+        >
+          <!-- 时间轴点 -->
+          <div class="timeline-dot" @click="selectDay(dayGroup)">
+            <div class="dot-inner">
+              <span class="article-count">{{ dayGroup.articles.length }}</span>
+            </div>
+            <div class="date-label">{{ formatDateShort(dayGroup.date) }}</div>
+          </div>
+          
+          <!-- 文章卡片 -->
+          <div class="article-card cards" @click="handleArticleClick(dayGroup)">
+            <div class="card-content">
+              <h3 class="article-title">{{ getDisplayArticle(dayGroup).title }}</h3>
+              <div class="article-meta">
+                <span class="article-time">{{ formatTime(getDisplayArticle(dayGroup).created_at) }}</span>
+                <span v-if="dayGroup.articles.length > 1" class="multiple-indicator">
+                  +{{ dayGroup.articles.length - 1 }}
+                </span>
               </div>
             </div>
           </div>
@@ -35,6 +59,30 @@
       </div>
     </div>
     
+    <!-- 多文章选择弹窗 -->
+    <div v-if="showArticleSelector" class="modal-overlay" @click="closeArticleSelector">
+      <div class="modal-content article-selector-modal" @click.stop>
+        <div class="modal-header">
+          <h2>{{ formatDate(selectedDay?.date) }} 的文章</h2>
+          <button @click="closeArticleSelector" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="article-list">
+            <div 
+              v-for="article in selectedDay?.articles" 
+              :key="article.id"
+              class="article-option cards"
+              @click="selectArticleFromDay(article)"
+            >
+              <h4>{{ article.title }}</h4>
+              <p class="article-preview">{{ truncateContent(article.content, 60) }}</p>
+              <div class="article-time">{{ formatTime(article.created_at) }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 发布/编辑文章弹窗 -->
     <div v-if="showForm" class="modal-overlay" @click="closeForm">
       <div class="modal-content publish-modal" @click.stop>
@@ -72,6 +120,16 @@
           <div class="article-meta">
             <span class="date">发布时间：{{ formatDate(selectedArticle.created_at) }}</span>
           </div>
+          <div class="article-actions">
+            <button @click="editArticle(selectedArticle)" class="action-btn edit-btn">
+              <Edit :size="16" />
+              编辑
+            </button>
+            <button @click="deleteArticle(selectedArticle.id)" class="action-btn delete-btn">
+              <Delete :size="16" />
+              删除
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -79,8 +137,8 @@
  </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { ArrowLeft } from '@icon-park/vue-next';
+import { ref, onMounted, computed } from 'vue';
+import { ArrowLeft, Plus, Edit, Delete } from '@icon-park/vue-next';
 import { mainStore } from '@/store';
 import { 
   getAvailableApiBase, 
@@ -98,6 +156,11 @@ const msgType = ref('success');
 const isSubmitting = ref(false);
 const articles = ref([]);
 const loading = ref(false);
+
+// 时间轴相关状态
+const showArticleSelector = ref(false);
+const selectedDay = ref(null);
+const randomizedArticles = ref(new Map()); // 存储每天随机选择的文章
 const selectedArticle = ref(null);
 const editingArticle = ref(null);
 const isEditing = ref(false);
@@ -107,6 +170,43 @@ const showForm = ref(false);
 
 // API 基础地址 - 动态获取
 let API_BASE = "https://workers.xiugou.top"; // 默认值
+
+// 按日期分组的文章
+const groupedArticles = computed(() => {
+  const groups = new Map();
+  
+  articles.value.forEach(article => {
+    const date = new Date(article.created_at).toDateString();
+    if (!groups.has(date)) {
+      groups.set(date, {
+        date: date,
+        articles: []
+      });
+    }
+    groups.get(date).articles.push(article);
+  });
+  
+  // 按日期排序（新日期在前）
+  return Array.from(groups.values()).sort((a, b) => new Date(b.date) - new Date(a.date));
+});
+
+// 获取要显示的文章（每天随机选择一篇）
+const getDisplayArticle = (dayGroup) => {
+  const dateKey = dayGroup.date;
+  
+  // 如果已经为这一天选择了文章，返回已选择的
+  if (randomizedArticles.value.has(dateKey)) {
+    const selectedId = randomizedArticles.value.get(dateKey);
+    return dayGroup.articles.find(article => article.id === selectedId) || dayGroup.articles[0];
+  }
+  
+  // 随机选择一篇文章
+  const randomIndex = Math.floor(Math.random() * dayGroup.articles.length);
+  const selectedArticle = dayGroup.articles[randomIndex];
+  randomizedArticles.value.set(dateKey, selectedArticle.id);
+  
+  return selectedArticle;
+};
 
 // 显示发布表单
 const showPublishForm = () => {
@@ -176,6 +276,11 @@ const submitArticle = async () => {
       // 重新加载文章列表
       await loadArticles();
       
+      // 重新添加测试数据（与现有文章合并）
+      const testData = generateTestData();
+      articles.value = [...articles.value, ...testData];
+      console.log('重新添加测试数据，现有文章总数:', articles.value.length, '篇');
+      
       // 延迟关闭表单，让用户看到成功消息
       setTimeout(() => {
         closeForm();
@@ -240,10 +345,56 @@ const formatDate = (dateString) => {
   return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit',
+    day: '2-digit'
+  });
+};
+
+// 格式化短日期（用于时间轴点）
+const formatDateShort = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}/${day}`;
+};
+
+// 格式化时间（用于文章选择器）
+const formatTime = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleString('zh-CN', {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+// 处理文章卡片点击
+const handleArticleClick = (dayGroup) => {
+  if (dayGroup.articles.length === 1) {
+    // 只有一篇文章，直接查看
+    viewFullArticle(dayGroup.articles[0]);
+  } else {
+    // 多篇文章，显示选择器
+    selectDay(dayGroup);
+  }
+};
+
+// 选择某一天（显示文章选择器）
+const selectDay = (dayGroup) => {
+  selectedDay.value = dayGroup;
+  showArticleSelector.value = true;
+};
+
+// 关闭文章选择器
+const closeArticleSelector = () => {
+  showArticleSelector.value = false;
+  selectedDay.value = null;
+};
+
+// 从某一天选择特定文章
+const selectArticleFromDay = (article) => {
+  closeArticleSelector();
+  viewFullArticle(article);
 };
 
 // 查看完整文章
@@ -301,6 +452,11 @@ const deleteArticle = async (articleId) => {
       
       // 重新加载文章列表
       await loadArticles();
+      
+      // 重新添加测试数据（与现有文章合并）
+      const testData = generateTestData();
+      articles.value = [...articles.value, ...testData];
+      console.log('删除后重新添加测试数据，现有文章总数:', articles.value.length, '篇');
     } else {
       msg.value = result.error || "删除失败！";
       msgType.value = 'error';
@@ -315,10 +471,122 @@ const deleteArticle = async (articleId) => {
   }
 };
 
+// 生成测试数据
+const generateTestData = () => {
+  const testArticles = [];
+  const baseDate = new Date('2024-08-03');
+  
+  const titles = [
+    'Vue 3 响应式原理深度解析',
+    'JavaScript 异步编程最佳实践',
+    'CSS Grid 布局完全指南',
+    'TypeScript 高级类型系统',
+    'React Hooks 使用技巧',
+    'Node.js 性能优化策略',
+    'Webpack 5 配置详解',
+    'ES2023 新特性总览',
+    '前端工程化实践指南',
+    '微前端架构设计思考',
+    'GraphQL 实战应用',
+    'PWA 开发完整教程',
+    'Docker 容器化部署',
+    'MongoDB 数据库设计',
+    'Redis 缓存优化'
+  ];
+  
+  const contents = [
+    '深入探讨Vue 3的响应式系统，包括Proxy的使用、依赖收集机制、以及与Vue 2的区别。通过实例代码演示如何利用响应式特性构建高效的应用。',
+    '详细介绍JavaScript中的异步编程模式，包括Promise、async/await、以及错误处理最佳实践。帮助开发者写出更优雅的异步代码。',
+    '全面讲解CSS Grid布局系统，从基础概念到高级应用，包含大量实例和最佳实践，让你彻底掌握现代CSS布局技术。',
+    '深入TypeScript的高级类型系统，包括泛型、条件类型、映射类型等，提升代码的类型安全性和可维护性。',
+    '分享React Hooks的实用技巧和最佳实践，包括自定义Hook的设计模式和性能优化策略。',
+    '探讨Node.js应用的性能优化方法，包括内存管理、事件循环优化、以及监控和调试技巧。',
+    '详细解析Webpack 5的新特性和配置方法，包括模块联邦、Tree Shaking优化等高级功能。',
+    '介绍ES2023的最新语言特性，包括新的语法糖、API改进，以及在实际项目中的应用场景。',
+    '分享前端工程化的完整实践方案，包括代码规范、自动化测试、CI/CD流程等。',
+    '探讨微前端架构的设计理念和实现方案，分析不同技术栈的集成策略和最佳实践。',
+    '深入GraphQL的实战应用，包括Schema设计、查询优化、以及与REST API的对比分析。',
+    'Progressive Web App开发的完整教程，包括Service Worker、缓存策略、离线功能实现。',
+    '详解Docker在前端项目中的应用，包括镜像构建、容器编排、以及部署优化策略。',
+    'MongoDB数据库设计的最佳实践，包括文档结构设计、索引优化、以及查询性能调优。',
+    'Redis缓存系统的深度应用，包括数据结构选择、过期策略、以及分布式缓存架构。'
+  ];
+  
+  // 预定义每天的文章数量和内容索引，确保数据稳定
+  const dailyData = [
+    { count: 2, indices: [0, 1] },    // 8月3日 - 2篇
+    { count: 1, indices: [2] },       // 8月2日 - 1篇
+    { count: 2, indices: [3, 4] },    // 8月1日 - 2篇
+    { count: 3, indices: [5, 6, 7] }, // 7月31日 - 3篇
+    { count: 1, indices: [8] },       // 7月30日 - 1篇
+    { count: 2, indices: [9, 10] },   // 7月29日 - 2篇
+    { count: 1, indices: [11] },      // 7月28日 - 1篇
+    { count: 2, indices: [12, 13] },  // 7月27日 - 2篇
+    { count: 1, indices: [14] },      // 7月26日 - 1篇
+    { count: 2, indices: [0, 5] }     // 7月25日 - 2篇
+  ];
+  
+  // 生成10天的数据
+  for (let i = 0; i < 10; i++) {
+    const currentDate = new Date(baseDate);
+    currentDate.setDate(baseDate.getDate() - i);
+    
+    const dayData = dailyData[i];
+    
+    for (let j = 0; j < dayData.count; j++) {
+      const titleIndex = dayData.indices[j] % titles.length;
+      testArticles.push({
+        id: `test-${i}-${j}`,
+        title: titles[titleIndex],
+        content: contents[titleIndex],
+        created_at: currentDate.toISOString()
+      });
+    }
+  }
+  
+  return testArticles;
+};
+
+// 时间轴容器引用
+const timelineContainer = ref(null);
+
+// 鼠标滚轮事件处理
+const handleWheel = (event) => {
+  event.preventDefault();
+  const container = timelineContainer.value;
+  if (container) {
+    // 滚轮向上滚动时向左滑动，向下滚动时向右滑动
+    const scrollAmount = event.deltaY > 0 ? 100 : -100;
+    container.scrollBy({
+      left: scrollAmount,
+      behavior: 'smooth'
+    });
+  }
+};
+
 // 组件挂载时加载文章列表
 onMounted(async () => {
   console.log('学习记录组件已挂载');
   await loadArticles();
+  
+  // 添加测试数据（与现有文章合并）
+  const testData = generateTestData();
+  articles.value = [...articles.value, ...testData];
+  console.log('已添加测试数据，现有文章总数:', articles.value.length, '篇');
+  
+  // 添加鼠标滚轮事件监听器
+  const container = timelineContainer.value;
+  if (container) {
+    container.addEventListener('wheel', handleWheel, { passive: false });
+  }
+});
+
+// 组件卸载时清理事件监听器
+onBeforeUnmount(() => {
+  const container = timelineContainer.value;
+  if (container) {
+    container.removeEventListener('wheel', handleWheel);
+  }
 });
 </script>
 
@@ -334,6 +602,7 @@ onMounted(async () => {
   padding: 2rem;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.3) 100%);
 }
 
 .header {
@@ -342,10 +611,12 @@ onMounted(async () => {
   justify-content: space-between;
   padding: 1.5rem 2rem;
   background-color: #00000040;
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  animation: fade 0.5s;
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  animation: slideInDown 0.6s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .new-post-btn {
@@ -353,23 +624,27 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 0.75rem 1.5rem;
-  background-color: #00d4aa;
-  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 25px;
   color: white;
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 14px;
   font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .new-post-btn:hover {
-  background-color: #00b894;
-  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .new-post-btn:active {
-  transform: scale(0.95);
+  transform: translateY(0);
 }
 
 .back-btn {
@@ -379,7 +654,7 @@ onMounted(async () => {
   padding: 0.75rem 1.5rem;
   background-color: #00000040;
   backdrop-filter: blur(10px);
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 25px;
   color: white;
   cursor: pointer;
@@ -389,19 +664,417 @@ onMounted(async () => {
 
 .back-btn:hover {
   background-color: #00000060;
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .back-btn:active {
-  transform: scale(0.95);
+  transform: translateY(0);
 }
 
 .header h1 {
   color: white;
   font-size: 1.8rem;
-  margin: 0;
   font-weight: 600;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 时间轴容器 */
+.timeline-container {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  padding: 2rem 0;
+}
+
+.timeline-wrapper {
+  position: relative;
+  height: 100%;
+  min-width: 100%;
+  padding: 0 100px;
+}
+
+/* 时间轴主线 */
+.timeline-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    rgba(255, 255, 255, 0.1) 0%, 
+    rgba(255, 255, 255, 0.3) 50%, 
+    rgba(255, 255, 255, 0.1) 100%);
+  border-radius: 1px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 时间轴项目 */
+.timeline-item {
+  position: absolute;
+  width: 280px;
+  transition: all 0.3s ease;
+}
+
+.timeline-item-top {
+  top: 10%;
+}
+
+.timeline-item-bottom {
+  bottom: 10%;
+}
+
+/* 时间轴点 */
+.timeline-dot {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: pointer;
+  z-index: 10;
+}
+
+.timeline-item-top .timeline-dot {
+  bottom: -60px;
+}
+
+.timeline-item-bottom .timeline-dot {
+  top: -60px;
+}
+
+.dot-inner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.dot-inner:hover {
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.article-count {
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.date-label {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 500;
+}
+
+.timeline-item-bottom .date-label {
+  top: -35px;
+}
+
+/* 文章卡片 */
+.article-card {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  animation: fadeInUp 0.6s ease-out;
+  max-width: 240px;
+}
+
+.article-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.article-title {
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.article-time {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.multiple-indicator {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.article-preview {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+.card-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1rem;
+}
+
+.article-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.view-btn {
+  background: rgba(52, 152, 219, 0.3);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.5);
+}
+
+.view-btn:hover {
+  background: rgba(52, 152, 219, 0.5);
+  color: white;
+}
+
+.edit-btn {
+  background: rgba(241, 196, 15, 0.3);
+  color: #f1c40f;
+  border: 1px solid rgba(241, 196, 15, 0.5);
+}
+
+.edit-btn:hover {
+  background: rgba(241, 196, 15, 0.5);
+  color: white;
+}
+
+.delete-btn {
+  background: rgba(231, 76, 60, 0.3);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.5);
+}
+
+.delete-btn:hover {
+  background: rgba(231, 76, 60, 0.5);
+  color: white;
+}
+
+/* 加载状态 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: white;
+  font-size: 1.1rem;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 空状态 */
+.no-articles {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: white;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+.no-articles p {
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.no-articles span {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
+/* 文章选择器模态框 */
+.article-selector-modal {
+  max-width: 600px;
+  max-height: 70vh;
+}
+
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.article-option {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.article-option:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.article-option h4 {
+  color: white;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.article-option .article-preview {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.article-time {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+}
+
+/* 动画 */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 滚动条样式 */
+.timeline-container::-webkit-scrollbar {
+  height: 12px;
+}
+
+.timeline-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.timeline-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.5) 100%);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.timeline-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.7) 100%);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scaleY(1.2);
+}
+
+.article-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.article-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.article-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.article-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .content {
@@ -733,6 +1406,50 @@ onMounted(async () => {
   font-size: 16px;
   margin: 0 0 20px 0;
   white-space: pre-wrap;
+}
+
+.article-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.edit-btn {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.edit-btn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.delete-btn {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
 }
 
 /* 响应式设计 */
