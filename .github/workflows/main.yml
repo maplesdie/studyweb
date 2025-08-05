@@ -21,7 +21,7 @@ jobs:
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@1
         with:
-          apiToken: ${{ secrets._d0Tp9oDM3qQs8I5ohZESYy3kBzXNZasvjEZ-nm2 }}
-          accountId: ${{ 7b1b0296a3539efed3feeb0fa5a3de29 }}
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
           projectName: studyweb  # 你的 Cloudflare Pages 项目名
           directory: dist
