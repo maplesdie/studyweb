@@ -2,9 +2,6 @@ name = "study-api"
 main = "src/worker.js"
 compatibility_date = "2023-12-01"
 
-# Pages 配置
-pages_build_output_dir = "dist"
-
 # D1 数据库绑定
 [[d1_databases]]
 binding = "DB"
