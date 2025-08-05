@@ -58,24 +58,15 @@ try {
     
     # Step 3: Deploy Workers API
     Write-Step "Deploying Cloudflare Workers API..."
-    wrangler deploy
+    wrangler deploy --env=""
     Test-CommandSuccess $LASTEXITCODE "Workers deployment failed"
     Write-Success "Workers API deployed"
     Write-Host ""
     
-    # Step 4: Deploy to Cloudflare Pages (optional)
-    Write-Step "Attempting Cloudflare Pages deployment..."
-    try {
-        wrangler pages deploy dist --project-name=home
-        if ($LASTEXITCODE -eq 0) {
-            Write-Success "Pages deployed successfully"
-        } else {
-            Write-Warning "Pages deployment failed, but GitHub auto-deployment should work"
-        }
-    }
-    catch {
-        Write-Warning "Pages deployment command failed, relying on GitHub auto-deployment"
-    }
+    # Step 4: Skip Pages deployment (rely on GitHub auto-deployment)
+    Write-Step "Skipping direct Pages deployment..."
+    Write-Host "[INFO] Relying on GitHub auto-deployment for Cloudflare Pages" -ForegroundColor Yellow
+    Write-Host "[INFO] GitHub push will trigger automatic build on Cloudflare Pages" -ForegroundColor Yellow
     Write-Host ""
     
     # Step 5: Test API
