@@ -82,10 +82,9 @@ try {
     }
     Write-Host ""
     
-    # Step 6: Wait for Pages deployment
-    Write-Step "Waiting for Cloudflare Pages auto-deployment..."
-    Write-Host "[INFO] GitHub push should trigger automatic build on Cloudflare Pages" -ForegroundColor Yellow
-    Write-Host "[INFO] This usually takes 1-3 minutes" -ForegroundColor Yellow
+    # Step 6: Deployment summary
+    Write-Step "Deployment process completed"
+    Write-Host "[INFO] Cloudflare Pages will auto-deploy from GitHub in 1-3 minutes" -ForegroundColor Yellow
     Write-Host ""
     
     # Final status

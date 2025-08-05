@@ -3,12 +3,10 @@
     <el-collapse class="collapse" v-model="activeName" accordion>
       <el-collapse-item title="个性壁纸" name="1">
         <div class="bg-set">
-          <el-radio-group v-model="coverType" text-color="#ffffff" @change="radioChange">
-            <el-radio value="0" size="large" border>默认壁纸</el-radio>
-            <el-radio value="1" size="large" border>每日一图</el-radio>
-            <el-radio value="2" size="large" border>随机风景</el-radio>
-            <el-radio value="3" size="large" border>随机动漫</el-radio>
-          </el-radio-group>
+          <div class="fixed-bg-info">
+            <span>当前使用：默认壁纸</span>
+            <p>为提升加载速度，已固定使用本地默认背景</p>
+          </div>
         </div>
       </el-collapse-item>
       <el-collapse-item title="个性化调整" name="2">
@@ -87,13 +85,12 @@
 </template>
 
 <script setup>
-import { CheckSmall, CloseSmall, SuccessPicture } from "@icon-park/vue-next";
+import { CheckSmall, CloseSmall } from "@icon-park/vue-next";
 import { mainStore } from "@/store";
 import { storeToRefs } from "pinia";
 
 const store = mainStore();
 const {
-  coverType,
   siteStartShow,
   musicClick,
   playerLrcShow,
@@ -105,17 +102,6 @@ const {
 
 // 默认选中项
 const activeName = ref("1");
-
-// 壁纸切换
-const radioChange = () => {
-  ElMessage({
-    message: "壁纸更换成功",
-    icon: h(SuccessPicture, {
-      theme: "filled",
-      fill: "#efefef",
-    }),
-  });
-};
 </script>
 
 <style lang="scss" scoped>
@@ -194,6 +180,24 @@ const radioChange = () => {
               }
             }
           }
+        }
+      }
+    }
+    .bg-set {
+      .fixed-bg-info {
+        text-align: center;
+        span {
+          font-size: 16px;
+          font-weight: bold;
+          color: #fff;
+          display: block;
+          margin-bottom: 10px;
+        }
+        p {
+          font-size: 14px;
+          color: #ffffff80;
+          margin: 0;
+          line-height: 1.5;
         }
       }
     }

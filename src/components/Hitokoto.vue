@@ -28,52 +28,24 @@
 </template>
 
 <script setup>
-import { MusicMenu, Error } from "@icon-park/vue-next";
-import { getHitokoto } from "@/api";
+import { MusicMenu } from "@icon-park/vue-next";
 import { mainStore } from "@/store";
-import debounce from "@/utils/debounce.js";
 
 const store = mainStore();
 
 // 开启音乐面板按钮显隐
 const openMusicShow = ref(false);
 
-// 一言数据
+// 一言数据（固定显示）
 const hitokotoData = reactive({
-  text: "这里应该显示一句话",
+  text: "显示一句话",
   from: "無名",
 });
 
-// 获取一言数据
-const getHitokotoData = async () => {
-  try {
-    const result = await getHitokoto();
-    hitokotoData.text = result.hitokoto;
-    hitokotoData.from = result.from;
-  } catch (error) {
-    ElMessage({
-      message: "一言获取失败",
-      icon: h(Error, {
-        theme: "filled",
-        fill: "#efefef",
-      }),
-    });
-    hitokotoData.text = "这里应该显示一句话";
-    hitokotoData.from = "無名";
-  }
-};
-
-// 更新一言数据
+// 更新一言数据（保留点击功能但不实际更新）
 const updateHitokoto = () => {
-  // 防抖
-  debounce(() => {
-    getHitokotoData();
-  }, 500);
+  // 不执行任何操作，保持固定内容
 };
-
-onMounted(() => {
-  getHitokotoData();
-});
 </script>
 
 <style lang="scss" scoped>

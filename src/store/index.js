@@ -5,7 +5,7 @@ export const mainStore = defineStore("main", {
     return {
       imgLoadStatus: false, // 壁纸加载状态
       innerWidth: null, // 当前窗口宽度
-      coverType: "0", // 壁纸种类
+      // coverType: "0", // 壁纸种类已移除，固定使用默认背景
       siteStartShow: false, // 建站日期显示
       musicClick: false, // 音乐链接是否跳转
       musicIsOk: false, // 音乐是否加载完成
@@ -80,7 +80,6 @@ export const mainStore = defineStore("main", {
     key: "data",
     storage: window.localStorage,
     paths: [
-      "coverType",
       "musicVolume",
       "siteStartShow",
       "musicClick",
