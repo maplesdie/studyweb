@@ -81,7 +81,7 @@ try {
     # Step 5: Test API
     Write-Step "Testing API endpoint..."
     try {
-        $response = Invoke-RestMethod -Uri 'https://study-api.maples-die.workers.dev/api/articles' -Method GET -TimeoutSec 10
+        $response = Invoke-RestMethod -Uri 'https://workers.xiugou.top/api/articles' -Method GET -TimeoutSec 10
         Write-Success "API is responding correctly"
         Write-Host "[DATA] Articles count: $($response.articles.Count)" -ForegroundColor Green
     }
@@ -101,7 +101,7 @@ try {
     Write-Host "=========================================" -ForegroundColor Green
     Write-Success "Deployment completed!"
     Write-Host "[FRONTEND] Building on Cloudflare Pages" -ForegroundColor Green
-    Write-Host "[API] https://study-api.maples-die.workers.dev" -ForegroundColor Green
+    Write-Host "[API] https://workers.xiugou.top" -ForegroundColor Green
     Write-Host "[WEBSITE] https://love.xiugou.top" -ForegroundColor Green
     Write-Host "[STATUS] Check Cloudflare Pages dashboard for build status" -ForegroundColor Green
     Write-Host "=========================================" -ForegroundColor Green

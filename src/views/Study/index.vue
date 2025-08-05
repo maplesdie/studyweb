@@ -7,30 +7,15 @@
         返回主页
       </button>
       <h1>学习记录</h1>
+      <button class="new-post-btn" @click="showPublishForm">
+        新建发布
+      </button>
     </div>
     
     <!-- 主要内容区域 -->
     <div class="content">
-      <!-- 发布/编辑文章表单 -->
-      <div class="publish-form">
-        <h2>{{ isEditing ? '编辑文章' : '发布文章' }}</h2>
-        <form @submit.prevent="submitArticle">
-          <label>标题：<input v-model="title" required /></label><br />
-          <label>内容：</label><br />
-          <textarea v-model="content" rows="10" cols="50" required></textarea><br />
-          <div class="form-actions">
-            <button type="submit" :disabled="isSubmitting">
-              {{ isSubmitting ? (isEditing ? '更新中...' : '发布中...') : (isEditing ? '更新' : '发布') }}
-            </button>
-            <button v-if="isEditing" type="button" @click="cancelEdit" class="cancel-btn">取消编辑</button>
-          </div>
-        </form>
-        <p v-if="msg" :class="msgType">{{ msg }}</p>
-      </div>
-      
       <!-- 文章列表 -->
       <div class="articles-list">
-        <h2>已发布文章</h2>
         <div v-if="loading" class="loading">加载中...</div>
         <div v-else-if="articles.length === 0" class="no-articles">暂无文章</div>
         <div v-else class="articles">
@@ -46,6 +31,31 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 发布/编辑文章弹窗 -->
+    <div v-if="showForm" class="modal-overlay" @click="closeForm">
+      <div class="modal-content publish-modal" @click.stop>
+        <div class="modal-header">
+          <h2>{{ isEditing ? '编辑文章' : '发布文章' }}</h2>
+          <button @click="closeForm" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="submitArticle" class="publish-form">
+            <label>标题：</label>
+            <input v-model="title" required placeholder="请输入文章标题" />
+            <label>内容：</label>
+            <textarea v-model="content" rows="15" required placeholder="请输入文章内容"></textarea>
+            <div class="form-actions">
+              <button type="submit" :disabled="isSubmitting" class="submit-btn">
+                {{ isSubmitting ? (isEditing ? '更新中...' : '发布中...') : (isEditing ? '更新' : '发布') }}
+              </button>
+              <button v-if="isEditing" type="button" @click="cancelEdit" class="cancel-btn">取消编辑</button>
+            </div>
+          </form>
+          <p v-if="msg" :class="msgType">{{ msg }}</p>
         </div>
       </div>
     </div>
@@ -72,6 +82,13 @@
 import { ref, onMounted } from 'vue';
 import { ArrowLeft } from '@icon-park/vue-next';
 import { mainStore } from '@/store';
+import { 
+  getAvailableApiBase, 
+  setCustomApiBase, 
+  getCustomApiBase, 
+  clearCustomApiBase,
+  API_CONFIGS 
+} from '@/config/api';
 
 const store = mainStore();
 const title = ref('');
@@ -86,9 +103,30 @@ const editingArticle = ref(null);
 const isEditing = ref(false);
 const isDeleting = ref(false);
 const deletingId = ref(null);
+const showForm = ref(false);
 
-// API 基础地址 - 已更新为实际的 Workers 域名
-const API_BASE = "https://study-api.maples-die.workers.dev";
+// API 基础地址 - 动态获取
+let API_BASE = "https://workers.xiugou.top"; // 默认值
+
+// 显示发布表单
+const showPublishForm = () => {
+  showForm.value = true;
+  isEditing.value = false;
+  editingArticle.value = null;
+  title.value = '';
+  content.value = '';
+  msg.value = '';
+};
+
+// 关闭发布表单
+const closeForm = () => {
+  showForm.value = false;
+  isEditing.value = false;
+  editingArticle.value = null;
+  title.value = '';
+  content.value = '';
+  msg.value = '';
+};
 
 // 发布/更新文章
 const submitArticle = async () => {
@@ -104,6 +142,8 @@ const submitArticle = async () => {
     
     const method = isEditing.value ? "PUT" : "POST";
     
+    console.log('发送请求:', { url, method, title: title.value, content: content.value });
+    
     const res = await fetch(url, {
       method: method,
       headers: {
@@ -116,29 +156,39 @@ const submitArticle = async () => {
       })
     });
     
-    const result = await res.json();
+    console.log('响应状态:', res.status, res.statusText);
+    
+    let result;
+    try {
+      result = await res.json();
+      console.log('响应数据:', result);
+    } catch (parseError) {
+      console.error('解析响应JSON失败:', parseError);
+      const text = await res.text();
+      console.log('响应文本:', text);
+      throw new Error(`服务器响应格式错误: ${text}`);
+    }
     
     if (res.ok && result.success) {
       msg.value = isEditing.value ? "更新成功！" : "发布成功！";
       msgType.value = 'success';
-      title.value = "";
-      content.value = "";
-      
-      // 重置编辑状态
-      if (isEditing.value) {
-        isEditing.value = false;
-        editingArticle.value = null;
-      }
       
       // 重新加载文章列表
       await loadArticles();
+      
+      // 延迟关闭表单，让用户看到成功消息
+      setTimeout(() => {
+        closeForm();
+      }, 1500);
     } else {
-      msg.value = result.error || (isEditing.value ? "更新失败！" : "发布失败！");
+      const errorMsg = result.error || `HTTP ${res.status}: ${res.statusText}`;
+      msg.value = errorMsg + (isEditing.value ? " (更新失败)" : " (发布失败)");
       msgType.value = 'error';
+      console.error('API错误:', errorMsg);
     }
   } catch (error) {
     console.error(isEditing.value ? '更新文章错误:' : '发布文章错误:', error);
-    msg.value = "网络错误，操作失败！";
+    msg.value = `网络错误: ${error.message}`;
     msgType.value = 'error';
   } finally {
     isSubmitting.value = false;
@@ -149,16 +199,29 @@ const submitArticle = async () => {
 const loadArticles = async () => {
   loading.value = true;
   try {
+    console.log('正在加载文章列表...');
     const res = await fetch(`${API_BASE}/api/articles`);
-    const result = await res.json();
+    console.log('文章列表响应状态:', res.status, res.statusText);
+    
+    let result;
+    try {
+      result = await res.json();
+      console.log('文章列表响应数据:', result);
+    } catch (parseError) {
+      console.error('解析文章列表响应JSON失败:', parseError);
+      const text = await res.text();
+      console.log('文章列表响应文本:', text);
+      return;
+    }
     
     if (res.ok && result.success) {
       articles.value = result.articles || [];
+      console.log('成功加载文章数量:', articles.value.length);
     } else {
-      console.error('加载文章失败:', result.error);
+      console.error('加载文章失败:', result.error || `HTTP ${res.status}: ${res.statusText}`);
     }
   } catch (error) {
-    console.error('加载文章错误:', error);
+    console.error('加载文章网络错误:', error);
   } finally {
     loading.value = false;
   }
@@ -200,18 +263,12 @@ const editArticle = (article) => {
   title.value = article.title;
   content.value = article.content;
   msg.value = '';
-  
-  // 滚动到表单顶部
-  document.querySelector('.publish-form').scrollIntoView({ behavior: 'smooth' });
+  showForm.value = true;
 };
 
 // 取消编辑
 const cancelEdit = () => {
-  isEditing.value = false;
-  editingArticle.value = null;
-  title.value = '';
-  content.value = '';
-  msg.value = '';
+  closeForm();
 };
 
 // 删除文章
@@ -259,8 +316,9 @@ const deleteArticle = async (articleId) => {
 };
 
 // 组件挂载时加载文章列表
-onMounted(() => {
-  loadArticles();
+onMounted(async () => {
+  console.log('学习记录组件已挂载');
+  await loadArticles();
 });
 </script>
 
@@ -288,6 +346,30 @@ onMounted(() => {
   border-radius: 12px;
   margin-bottom: 1.5rem;
   animation: fade 0.5s;
+}
+
+.new-post-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1.5rem;
+  background-color: #00d4aa;
+  border: none;
+  border-radius: 25px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.new-post-btn:hover {
+  background-color: #00b894;
+  transform: scale(1.05);
+}
+
+.new-post-btn:active {
+  transform: scale(0.95);
 }
 
 .back-btn {
@@ -325,40 +407,16 @@ onMounted(() => {
 .content {
   flex: 1;
   display: flex;
-  gap: 1.5rem;
   overflow: hidden;
 }
 
+/* 发布弹窗样式 */
+.publish-modal {
+  max-width: 700px;
+  width: 90%;
+}
+
 .publish-form {
-  background-color: #00000040;
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 2rem;
-  width: 100%;
-  max-width: 500px;
-  flex-shrink: 0;
-  animation: fade 0.5s;
-  transition: all 0.3s ease;
-  overflow-y: auto;
-}
-
-.publish-form:hover {
-  transform: scale(1.01);
-}
-
-.publish-form:active {
-  transform: scale(0.98);
-}
-
-.publish-form h2 {
-  color: white;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.publish-form form {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -381,6 +439,8 @@ onMounted(() => {
   font-size: 14px;
   color: white;
   transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .publish-form input::placeholder,
@@ -395,50 +455,57 @@ onMounted(() => {
   background-color: #ffffff30;
 }
 
+.publish-form textarea {
+  resize: vertical;
+  min-height: 300px;
+}
+
 .form-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-  align-items: center;
-}
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    align-items: center;
+  }
+  
+  .submit-btn, .cancel-btn, .test-btn {
+    background: transparent;
+    border: 2px solid #00d4aa;
+    color: #00d4aa;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+  }
+  
+  .submit-btn:hover, .cancel-btn:hover, .test-btn:hover {
+    background-color: #00d4aa;
+    color: #000;
+    transform: translateY(-2px);
+  }
+  
+  .cancel-btn {
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+  }
+  
+  .cancel-btn:hover {
+    background-color: #ff6b6b;
+    color: #fff;
+  }
+  
+  .test-btn {
+    border-color: #ffa500;
+    color: #ffa500;
+  }
+  
+  .test-btn:hover {
+    background-color: #ffa500;
+    color: #000;
+  }
 
-.publish-form button {
-  padding: 0.875rem 1.5rem;
-  background-color: #ffffff20;
-  backdrop-filter: blur(10px);
-  color: white;
-  border: 1px solid #ffffff30;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.publish-form button:hover {
-  background-color: #ffffff30;
-  transform: scale(1.02);
-}
-
-.cancel-btn {
-  border-color: #ff4444 !important;
-}
-
-.cancel-btn:hover {
-  background-color: #ff4444 !important;
-  transform: scale(1.02);
-}
-
-.publish-form button:active {
-  transform: scale(0.98);
-}
-
-.publish-form button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.publish-form p {
+/* 消息样式 */
+.modal-body p {
   text-align: center;
   margin-top: 1rem;
   padding: 0.75rem;
@@ -446,13 +513,13 @@ onMounted(() => {
   font-size: 0.9rem;
 }
 
-.publish-form p.success {
+.modal-body p.success {
   background-color: #00ff0020;
   color: #90ee90;
   border: 1px solid #00ff0030;
 }
 
-.publish-form p.error {
+.modal-body p.error {
   background-color: #ff000020;
   color: #ff9999;
   border: 1px solid #ff000030;
@@ -465,7 +532,6 @@ onMounted(() => {
   border-radius: 12px;
   padding: 2rem;
   width: 100%;
-  max-width: 600px;
   flex-grow: 1;
   animation: fade 0.5s;
   transition: all 0.3s ease;
@@ -671,14 +737,8 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 1200px) {
-  .content {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .publish-form,
   .articles-list {
-    max-width: 800px;
+    max-width: 100%;
   }
 }
 
@@ -701,19 +761,19 @@ onMounted(() => {
     font-size: 0.875rem;
   }
 
-  .content {
-    gap: 1rem;
+  .new-post-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
   }
   
-  .publish-form,
   .articles-list {
     padding: 1.25rem;
     border-radius: 10px;
   }
 
-  .publish-form h2,
-  .articles-list h2 {
-    font-size: 1.25rem;
+  .publish-modal {
+    width: 95%;
+    max-width: 95%;
   }
 
   .publish-form label {
@@ -726,9 +786,8 @@ onMounted(() => {
     padding: 0.75rem;
   }
 
-  .publish-form button {
-    padding: 0.75rem 1.5rem;
-    font-size: 0.875rem;
+  .publish-form textarea {
+    min-height: 200px;
   }
 
   .article-item {
